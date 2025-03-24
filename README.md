@@ -8,10 +8,13 @@ This repository contains a collection of Python modules for the analysis of HDX-
 # Installation
 Install directly from GitHub with all dependencies:
 
+```bash
 pip install git+https://github.com/ococrook/hdx-sFDR.git
+```
 
 Or clone the repository and install:
 
+```bash
 git clone https://github.com/ococrook/hdx-sFDR.git
 cd hdx-sFDR
 pip install -r requirements.txt
@@ -19,8 +22,11 @@ pip install -e .
 
 # Usage in Google Colab
 Add the following code to your Colab notebook to install and import the modules:
+```
 
+```python
 # Install package with all dependencies
+
 !pip install git+https://github.com/ococrook/hdx-sFDR.git
 
 # Import modules
@@ -39,6 +45,7 @@ def reload_modules():
     importlib.reload(statistical_inference)
     importlib.reload(evalutions)
     print("All modules reloaded successfully!")
+```
 
 # Required Data
 This package requires two types of input files:
