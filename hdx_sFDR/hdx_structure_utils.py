@@ -9,6 +9,7 @@ from matplotlib.figure import Figure
 import scipy.stats
 
 # BioPython imports
+import Bio
 from Bio import PDB
 from Bio.PDB.DSSP import dssp_dict_from_pdb_file, DSSP
 from Bio.PDB.Structure import Structure
