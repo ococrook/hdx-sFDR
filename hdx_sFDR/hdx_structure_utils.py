@@ -5,11 +5,13 @@ from typing import Dict, Union
 # Third-party imports
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 import scipy.stats
 
 # BioPython imports
 from Bio import PDB
 from Bio.PDB.DSSP import dssp_dict_from_pdb_file, DSSP
+from Bio.PDB.Structure import Structure
 
 """
 Utilities for extracting and analyzing structural features from protein structures.
@@ -69,9 +71,20 @@ def extract_structural_features(cif_path: str, distance_cutoff: float=8.0) -> Di
         'structure': structure
     }
 
-def plot_contact_map(features, figsize=(10,10)):
+def plot_contact_map(features: Dict[str, Any], figsize: Tuple[int, int] = (10, 10)) -> Figure:
     """
-    Plot contact map
+     Parameters:
+    -----------
+    features : Dict[str, Any]
+        Dictionary containing structural features.
+        Must include 'contact_map' key with a numpy array.
+    figsize : Tuple[int, int], optional
+        Figure size as (width, height) in inches. Default is (10, 10).
+        
+    Returns:
+    --------
+    matplotlib.figure.Figure
+        The generated figure object containing the contact map visualization.
     """
     fig, ax = plt.subplots(figsize=figsize)
     
