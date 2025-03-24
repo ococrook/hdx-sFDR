@@ -19,10 +19,11 @@ git clone https://github.com/ococrook/hdx-sFDR.git
 cd hdx-sFDR
 pip install -r requirements.txt
 pip install -e .
+```
 
 # Usage in Google Colab
 Add the following code to your Colab notebook to install and import the modules:
-```
+
 
 ```python
 # Install package with all dependencies
