@@ -21,7 +21,7 @@ This module provides functions to process mmCIF files and extract features
 such as contact maps, distance matrices
 """
 
-def extract_structural_features(cif_path: str, distance_cutoff: float=8.0) -> Dict[str, Union[np.ndarray, Structure]]:
+def extract_structural_features(cif_path: str, distance_cutoff: float=8.0) -> Dict[str, Union[np.ndarray, Any]]:
     """
     Extract contact map and distances from CIF file
     
