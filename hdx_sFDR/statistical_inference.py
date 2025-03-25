@@ -28,6 +28,31 @@ def load_structure(cif_path):
     
     return np.array(coords), np.array(plddt), np.array(residue_ids)
 
+def process_structure(structure):
+    """process structure and extract coordinates and B-factors (pLDDT scores for AlphaFold)"""
+    # Load structure
+    model = structure[0]
+    
+    # Get coordinates and pLDDT scores
+    coords = []
+    plddt = []
+    residue_ids = []
+    
+    for model in structure:
+        for chain in model:
+            for residue in chain:
+                # Get CA atom coordinates
+                ca_atom = residue['CA']
+                coords.append(ca_atom.get_coord())
+                # B-factor contains pLDDT score in AlphaFold
+                plddt.append(ca_atom.get_bfactor())
+                residue_ids.append(residue.id[1])
+    
+    return np.array(coords), np.array(plddt), np.array(residue_ids)
+
+
+
+
 def process_peptide_map(peptide_df):
     """Process peptide map dataframe
     Expected columns: start, end, pvalue, exposure (optional)"""
