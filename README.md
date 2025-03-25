@@ -48,6 +48,15 @@ def reload_modules():
     print("All modules reloaded successfully!")
 ```
 
+## Interactive Notebook
+
+Try HDX-sFDR without installation using our Google Colab notebook:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ococrook/hdx-sFDR/blob/main/examples/hdx_sFDR.ipynb)
+
+An example .csv and .cif file are included in the examples folder.
+
+
 # Required Data
 This package requires two types of input files:
 
