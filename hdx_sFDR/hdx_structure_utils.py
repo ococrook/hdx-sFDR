@@ -1,6 +1,6 @@
 # Standard library imports
 import warnings
-from typing import Dict, Union, Any
+from typing import Dict, Union, Any, Tuple
 
 # Third-party imports
 import numpy as np
