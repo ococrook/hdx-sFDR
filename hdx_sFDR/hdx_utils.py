@@ -39,6 +39,60 @@ def read_fasta(filepath):
     
     return sequences
 
+def validate_hdx_csv(df):
+    """
+    Validate that a DataFrame contains the required columns for HDX-MS analysis.
+    
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        DataFrame to validate
+        
+    Returns:
+    --------
+    bool
+        True if validation passes, False otherwise
+    
+    Notes:
+    ------
+    Required columns: 'Start', 'End', 'pvalue'
+    Optional columns: 'Exposure'
+    """
+    # Check for required columns
+    required_columns = ['Start', 'End', 'pvalue']
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    
+    if missing_columns:
+        print(f"Error: Missing required columns: {', '.join(missing_columns)}")
+        print(f"Required columns are: {', '.join(required_columns)}")
+        print(f"Found columns: {', '.join(df.columns)}")
+        return False
+    
+    # Check for optional columns
+    optional_columns = ['Exposure']
+    missing_optional = [col for col in optional_columns if col not in df.columns]
+    
+    if missing_optional:
+        print(f"Warning: Missing optional column: {', '.join(missing_optional)}")
+        print("This is okay, but some functionality may be limited.")
+    
+    # Check column data types
+    try:
+        # Verify Start and End are numeric
+        df['Start'].astype(int)
+        df['End'].astype(int)
+        
+        # Verify pvalue is numeric and between 0-1
+        p_values = df['pvalue'].astype(float)
+        if (p_values < 0).any() or (p_values > 1).any():
+            print("Warning: Some p-values are outside the valid range [0,1]")
+    
+    except ValueError as e:
+        print(f"Error: Invalid data types in required columns: {e}")
+        return False
+        
+    print("CSV validation successful!")
+    return True
 
 def create_peptide_matrix(df, protein_sequence, protein_length=None):
     """
