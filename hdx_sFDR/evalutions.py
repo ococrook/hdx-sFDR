@@ -1,11 +1,13 @@
-import statistical_inference
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+# import other package module
+from . import statistical_inference
+
 def evaluate_alpha_effects(peptides, coords, plddt, alphas=np.linspace(0, 1, 21)):
-    
+
     baseline_qvalues = statistical_inference.compute_qvalues(peptides[:,2])
     
     results = []
