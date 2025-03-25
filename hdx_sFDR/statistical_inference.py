@@ -386,3 +386,77 @@ def main():
     })
     
     return results
+
+def analyze_hdx_data(df, structure, lambda_seq=1, lambda_struct=1, alpha=0.5, transform_sum=True):
+    """
+    Analyze HDX-MS data with structural information to correct p-values.
+    
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        DataFrame containing HDX-MS data with required columns (Start, End, pvalue)
+    structure : Bio.PDB.Structure.Structure
+        Protein structure object
+    lambda_seq : float, optional
+        Sequence weight parameter. Default is 1.
+    lambda_struct : float, optional
+        Structure weight parameter. Default is 1.
+    alpha : float, optional
+        Confidence weight parameter. Default is 0.5.
+    transform_sum : bool, optional
+        Whether to use sum transformation for weighted p-values. Default is True.
+        
+    Returns:
+    --------
+    pandas.DataFrame
+        Results containing original and corrected statistics
+    """
+    
+    # Process structure
+    print("Processing structure...")
+    coords, plddt, residue_ids = process_structure(structure=structure)
+    
+    # Process peptide data
+    print("Processing peptide data...")
+    peptides = process_peptide_map(df)
+    
+    # Calculate weights
+    print("Calculating weights...")
+    weights, seq_weights, struct_weights, conf_weights = calculate_weights(
+        peptides,
+        coords,
+        plddt,
+        lambda_seq=lambda_seq,
+        lambda_struct=lambda_struct,
+        alpha=alpha
+    )
+    
+    # Calculate weighted p-values and q-values
+    print("Calculating corrected statistics...")
+    weighted_pvalues, qvalues = calculate_weighted_pvalues_with_timepoints(
+        peptides, 
+        weights, 
+        transform_sum=transform_sum
+    )
+    
+    # Estimate effective number of tests
+    meff, eigenvalues, corr_matrix = estimate_effective_tests_from_weights(weights)
+    
+    # Prepare results
+    results = pd.DataFrame({
+        'start': peptides[:,0],
+        'end': peptides[:,1],
+        'original_p': peptides[:,2],
+        'original_q': compute_qvalues(peptides[:,2]),
+        'corrected_q': compute_qvalues(
+            peptides[:,2], 
+            meff=meff * len(np.unique(peptides[:, 3]))
+        ),
+        'weighted_p': weighted_pvalues,
+        'weighted_q': qvalues
+    })
+    
+    print(f"Analysis complete! Processed {len(results)} peptides.")
+    print(f"Estimated effective number of tests: {meff:.2f}")
+    
+    return results
