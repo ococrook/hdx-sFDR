@@ -3,6 +3,8 @@ from Bio import PDB
 import pandas as pd
 from scipy.spatial.distance import pdist, squareform
 from scipy.stats import norm
+from statsmodels.stats.multitest import multipletests
+
 
 def load_structure(cif_path):
     """Load CIF file and extract coordinates and B-factors (pLDDT scores for AlphaFold)"""
@@ -164,115 +166,362 @@ def calculate_weights(peptides, coordinates, plddt_scores, lambda_seq=10, lambda
     
     return weights, seq_weights, struct_weights, conf_weights
 
-def calculate_weighted_pvalues(peptides, weights, transform_sum=True):
-    """Calculate weighted p-values using either approach"""
-    n_peptides = len(peptides)
-    pvalues = peptides[:,2]
-    
-    # Normalize weights
-    w_norm = weights / weights.sum(axis=1)[:,None]
 
-    # Adjust extreme p-values to prevent infinite z-scores
-    # Set a small epsilon value
-    epsilon = 1e-10
-    
-    # Clip p-values to be within (epsilon, 1-epsilon)
-    pvalues = np.clip(pvalues, epsilon, 1-epsilon)
-    
-    if transform_sum:
-        # Approach 1: Transform of sum
-        z_scores = norm.ppf(pvalues)
-        weighted_z = np.sum(w_norm * z_scores[None,:], axis=1)
-        weighted_p = norm.cdf(weighted_z)
-    else:
-        # Approach 2: Sum of transforms
-        z_scores = norm.ppf(pvalues)
-        weighted_p = np.sum(w_norm * pvalues[None, :], axis=1)
-
-
-    meff, eigenvalues, corr_matrix = estimate_effective_tests_from_weights(weights)
-    weighted_q_values = compute_qvalues(weighted_p, meff)
-
-    return weighted_p, weighted_q_values
-
-def calculate_weighted_pvalues_with_timepoints(peptides, weights, transform_sum=True):
+def kmeans_optimal(data, k_range=range(2, 11), random_state=42, standardize=True):
     """
-    Calculate weighted p-values using either approach, handling timepoints separately
+    Performs k-means clustering with multiple k values and returns the optimal clustering.
+    
+    Parameters:
+    -----------
+    data : array-like
+        Input matrix to cluster
+    k_range : range or list, default=range(2, 11)
+        Range of k values to try
+    random_state : int, default=42
+        Random seed for reproducibility
+    standardize : bool, default=True
+        Whether to standardize the data before clustering
+        
+    Returns:
+    --------
+    labels : ndarray
+        Cluster labels using the optimal k
+    best_k : int
+        Optimal number of clusters
+    """
+    
+    # Convert to numpy array if DataFrame
+    if isinstance(data, pd.DataFrame):
+        data_array = data.values
+    else:
+        data_array = data
+    
+    # Standardize data if requested
+    if standardize:
+        scaler = StandardScaler()
+        data_array = scaler.fit_transform(data_array)
+    
+    # Initialize storage for metrics
+    inertia = []
+    silhouette_scores = []
+    models = {}
+    
+    # Try different k values
+    for k in k_range:
+        # Fit k-means
+        kmeans = KMeans(n_clusters=k, random_state=random_state, n_init=10)
+        kmeans.fit(data_array)
+        
+        # Store the model
+        models[k] = kmeans
+        
+        # Calculate inertia
+        inertia.append(kmeans.inertia_)
+        
+        # Calculate silhouette score (if k > 1)
+        if k > 1:
+            score = silhouette_score(data_array, kmeans.labels_)
+            silhouette_scores.append(score)
+        else:
+            silhouette_scores.append(0)
+    
+    # Find optimal k - silhouette method (best separated clusters)
+    if max(silhouette_scores) > 0:
+        best_k = list(k_range)[np.argmax(silhouette_scores)]
+    else:
+        # Fallback to elbow method (look for significant drop in inertia)
+        diffs = np.diff(inertia)
+        best_k = list(k_range)[np.argmax(-diffs)]
+    
+    # Return the best labels and k
+    best_model = models[best_k]
+    return best_model.labels_, best_k
+
+def compute_tst(pvalues, clusters, alpha=0.05):
+    """
+    Compute the Two-Stage Testing (TST) estimator for proportion of true null hypotheses
+    for each cluster, as described in the Adaptive TST GBH procedure.
+    
+    Parameters:
+    -----------
+    pvalues : array-like
+        List or array of p-values
+    clusters : array-like
+        Cluster assignments for each p-value
+    alpha : float, default=0.05
+        Significance level
+        
+    Returns:
+    --------
+    tst_estimators : dict
+        Dictionary with cluster IDs as keys and TST estimators as values
+    rejection_counts : dict
+        Dictionary with cluster IDs as keys and number of rejections as values
+    """
+    
+    # Convert inputs to numpy arrays
+    pvalues = np.array(pvalues)
+    clusters = np.array(clusters)
+    
+    # Get unique cluster IDs
+    unique_clusters = np.unique(clusters)
+    
+    # Initialize the results dictionaries
+    tst_estimators = {}
+    rejection_counts = {}
+    
+    # Compute the modified alpha for step 1
+    alpha_prime = alpha / (1 + alpha)
+    
+    # For each cluster, compute the TST estimator
+    for g in unique_clusters:
+        # Get p-values for this cluster
+        cluster_pvalues = pvalues[clusters == g]
+        
+        # Get total number of hypotheses in this cluster
+        n_g = len(cluster_pvalues)
+        
+        # Step 1: Apply BH procedure at level alpha_prime
+        reject_bh, _, _, _ = multipletests(cluster_pvalues, alpha=alpha_prime, method='fdr_bh')
+        
+        # Count the number of rejections
+        r_g1 = np.sum(reject_bh)
+        rejection_counts[g] = r_g1
+        
+        # Step 2: Compute the TST estimator of π_g,0
+        gamma_tst_g = (n_g - r_g1) / n_g
+        tst_estimators[g] = gamma_tst_g
+    
+    return tst_estimators, rejection_counts
+
+def adaptive_tst_gbh(pvalues, clusters, alpha=0.05):
+    """
+    Perform the Adaptive TST GBH procedure on clustered p-values.
+    
+    Parameters:
+    -----------
+    pvalues : array-like
+        List or array of p-values
+    clusters : array-like
+        Cluster assignments for each p-value
+    alpha : float, default=0.05
+        Significance level
+        
+    Returns:
+    --------
+    reject : ndarray
+        Boolean array indicating which hypotheses are rejected
+    reweighted_pvalues : ndarray
+        Array of reweighted p-values
+    tst_estimators : dict
+        Dictionary with cluster IDs as keys and TST estimators as values
+    """
+    
+    # Step 1 & 2: Compute TST estimators
+    tst_estimators, rejection_counts = compute_tst(pvalues, clusters, alpha)
+    
+    # Compute the modified alpha
+    alpha_prime = alpha / (1 + alpha)
+    
+    # Step 3: Reweight p-values using TST estimators
+    reweighted_pvalues = compute_weighted_pvalues(pvalues, clusters, tst_estimators)
+    
+    # Apply BH procedure on reweighted p-values
+    reject, _, _, _ = multipletests(reweighted_pvalues, alpha=alpha_prime, method='fdr_bh')
+    
+    return reject, reweighted_pvalues, tst_estimators
+
+
+def compute_weighted_pvalues(pvalues, clusters, tst_estimators):
+    """
+    Compute reweighted p-values using the TST estimators for each cluster.
+    This implements step 3 of the Adaptive TST GBH procedure.
+    
+    Parameters:
+    -----------
+    pvalues : array-like
+        List or array of p-values
+    clusters : array-like
+        Cluster assignments for each p-value
+    tst_estimators : dict
+        Dictionary with cluster IDs as keys and TST estimators as values
+        
+    Returns:
+    --------
+    reweighted_pvalues : ndarray
+        Array of reweighted p-values
+    """
+    
+    # Convert inputs to numpy arrays
+    pvalues = np.array(pvalues)
+    clusters = np.array(clusters)
+    
+    # Initialize the reweighted p-values array
+    reweighted_pvalues = np.zeros_like(pvalues)
+    
+    # For each p-value, apply the reweighting based on its cluster
+    for i, (p, cluster) in enumerate(zip(pvalues, clusters)):
+        # Get the TST estimator for this cluster
+        gamma_tst = tst_estimators[cluster]
+        
+        # Reweight the p-value
+        # We use max(gamma_tst, epsilon) to avoid division by zero
+        epsilon = 1e-10
+        reweighted_pvalues[i] = p / max(gamma_tst, epsilon)
+        
+        # Cap the reweighted p-value at 1
+        reweighted_pvalues[i] = min(reweighted_pvalues[i], 1.0)
+    
+    return reweighted_pvalues,
+
+def compute_qvalues_tst(pvalues, clusters, alpha=0.05):
+    """
+    Compute q-values based on the Adaptive TST GBH procedure.
+    
+    Parameters:
+    -----------
+    pvalues : array-like
+        List or array of p-values
+    clusters : array-like
+        Cluster assignments for each p-value
+    alpha : float, default=0.05
+        Significance level
+        
+    Returns:
+    --------
+    qvalues : ndarray
+        Array of q-values corresponding to each p-value
+    tst_estimators : dict
+        Dictionary with cluster IDs as keys and TST estimators as values
+    reweighted_pvalues : ndarray
+        Array of reweighted p-values
+    """
+    
+    # First get the TST estimators and reweighted p-values
+    _, reweighted_pvalues, tst_estimators = adaptive_tst_gbh(pvalues, clusters, alpha)
+    
+    # Sort the reweighted p-values and keep track of original indices
+    n = len(reweighted_pvalues)
+    sorted_indices = np.argsort(reweighted_pvalues)
+    sorted_reweighted_pvalues = reweighted_pvalues[sorted_indices]
+    
+    # Compute q-values based on the reweighted p-values
+    qvalues = np.ones(n)
+    
+    # Start with the largest p-value
+    qvalues[sorted_indices[-1]] = sorted_reweighted_pvalues[-1]
+    
+    # Process remaining p-values from second-largest to smallest
+    for i in range(n-2, -1, -1):
+        idx = sorted_indices[i]
+        # Q-value is the minimum of the current reweighted p-value and the previous q-value
+        qvalues[idx] = min(sorted_reweighted_pvalues[i], qvalues[sorted_indices[i+1]])
+    
+    return qvalues, tst_estimators, reweighted_pvalues
+
+
+def calculate_weighted_pvalues_with_timepoints(peptides, weights, alpha=0.05):
+    """
+    Calculate weighted p-values and q-values handling timepoints separately but computing
+    global q-values across all timepoints.
     
     Parameters:
     peptides (numpy.ndarray): Array containing peptide data with potential timepoints in the 4th column
     weights (numpy.ndarray): Weight matrix for peptides
-    transform_sum (bool): Whether to use transform of sum (True) or sum of transforms (False)
+    alpha: significance level
     
     Returns:
-    tuple: (weighted_p_values, weighted_q_values)
+    tuple: (weighted_p_values, weighted_q_values, tst_estimators)
     """
     # Check if timepoints exist (4th column is present)
     has_timepoints = peptides.shape[1] >= 4
     
     if not has_timepoints:
         # Use the original function if no timepoints
-        return calculate_weighted_pvalues(peptides, weights, transform_sum)
+        return compute_qvalues_tst(peptides[:,2], weights)
     
     # Extract timepoints and get unique values
     timepoints = peptides[:, 3]
     unique_timepoints = np.unique(timepoints)
     n_timepoints = len(unique_timepoints)
     
-    # Initialize arrays to store results
-    all_weighted_p = []
-
-    # Normalize weights for the current set of peptides
-    current_weights = weights
-    w_norm = current_weights / current_weights.sum(axis=1)[:, None]
+    # Compute groupings/clusters
+    cluster_labels, best_k = kmeans_optimal(weights)
+    print(f"Optimal number of clusters: {best_k}")
+    
+    # Initialize lists to store results by timepoint
+    pvalues_by_timepoint = []
+    indices_by_timepoint = []
+    tst_estimators_by_timepoint = []
+    reweighted_pvalues_by_timepoint = []
     
     # Process each timepoint separately
     for timepoint in unique_timepoints:
         # Get indices for current timepoint
         indices = np.where(timepoints == timepoint)[0]
+        indices_by_timepoint.append(indices)
         
         # Extract relevant peptides and their p-values for this timepoint
         current_peptides = peptides[indices]
         current_pvalues = current_peptides[:, 2]
+        current_clusters = cluster_labels[indices]
         
+        # Store p-values for this timepoint
+        pvalues_by_timepoint.append(current_pvalues)
         
-        # Adjust extreme p-values to prevent infinite z-scores
-        epsilon = 1e-10
-        current_pvalues = np.clip(current_pvalues, epsilon, 1-epsilon)
+        # Compute TST estimators for this timepoint
+        tst_estimators, _ = compute_tst(current_pvalues, current_clusters, alpha)
+        tst_estimators_by_timepoint.append(tst_estimators)
         
-        if transform_sum:
-            # Approach 1: Transform of sum
-            z_scores = norm.ppf(current_pvalues)
-            weighted_z = np.sum(w_norm * z_scores[None,:], axis=1)
-            weighted_p = norm.cdf(weighted_z)
-        else:
-            # Approach 2: Sum of transforms
-            z_scores = norm.ppf(current_pvalues)
-            weighted_p = np.sum(w_norm * current_pvalues[None, :], axis=1)
+        # Compute reweighted p-values for this timepoint
+        reweighted_pvalues = compute_reweighted_pvalues(current_pvalues, current_clusters, tst_estimators)
+        reweighted_pvalues_by_timepoint.append(reweighted_pvalues)
+    
+    # Flatten all reweighted p-values for global q-value computation
+    all_reweighted_pvalues = []
+    timepoint_mapping = []  # Keep track of which timepoint each p-value belongs to
+    local_index_mapping = []  # Keep track of the local index within each timepoint
+    
+    for t, reweighted_pvalues in enumerate(reweighted_pvalues_by_timepoint):
+        all_reweighted_pvalues.extend(reweighted_pvalues)
+        timepoint_mapping.extend([t] * len(reweighted_pvalues))
+        local_index_mapping.extend(range(len(reweighted_pvalues)))
+    
+    all_reweighted_pvalues = np.array(all_reweighted_pvalues)
+    
+    # Sort all reweighted p-values
+    sorted_indices = np.argsort(all_reweighted_pvalues)
+    sorted_reweighted_pvalues = all_reweighted_pvalues[sorted_indices]
+    
+    # Compute global q-values
+    n_total = len(all_reweighted_pvalues)
+    global_qvalues_flat = np.ones(n_total)
+    
+    # Start with the largest p-value
+    global_qvalues_flat[sorted_indices[-1]] = sorted_reweighted_pvalues[-1]
+    
+    # Process remaining p-values from second-largest to smallest
+    for i in range(n_total-2, -1, -1):
+        idx = sorted_indices[i]
+        global_qvalues_flat[idx] = min(sorted_reweighted_pvalues[i], global_qvalues_flat[sorted_indices[i+1]])
+    
+    # Initialize arrays to store final results in original peptide order
+    weighted_p_values = np.ones(len(peptides))
+    weighted_q_values = np.ones(len(peptides))
+    
+    # Map results back to original peptide order
+    for t, indices in enumerate(indices_by_timepoint):
+        timepoint_reweighted_pvalues = reweighted_pvalues_by_timepoint[t]
         
-        all_weighted_p.append(weighted_p)
+        # Extract q-values for this timepoint
+        timepoint_qvalues_indices = np.where(np.array(timepoint_mapping) == t)[0]
+        timepoint_qvalues = global_qvalues_flat[timepoint_qvalues_indices]
+        
+        # Assign to original peptide array
+        weighted_p_values[indices] = timepoint_reweighted_pvalues
+        weighted_q_values[indices] = timepoint_qvalues
     
-
-    # Need to maintain original order
-    # Initialize arrays to store results in original order
-    weighted_p = np.zeros(len(peptides))
-    # Put results back in the original positions
-
-    start_idx = 0
-    for i, timepoint in enumerate(unique_timepoints):
-        indices = np.where(timepoints == timepoint)[0]
-        weighted_p[indices] = all_weighted_p[i]
-    
-    # Calculate effective tests once for all data
-    meff, eigenvalues, corr_matrix = estimate_effective_tests_from_weights(weights)
-    
-    # Adjust meff by multiplying with the number of timepoints
-    adjusted_meff = meff * n_timepoints
-    
-    # Compute q-values using the adjusted meff
-    weighted_q_values = compute_qvalues(weighted_p, adjusted_meff)
-    
-    return weighted_p, weighted_q_values
+    return weighted_p_values, weighted_q_values
 
 
 def compute_qvalues(pvalues, meff = None):
