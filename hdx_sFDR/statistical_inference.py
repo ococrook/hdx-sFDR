@@ -410,7 +410,7 @@ def compute_qvalues_tst(pvalues, clusters, alpha=0.05):
         # Q-value is the minimum of the current reweighted p-value and the previous q-value
         qvalues[idx] = min(sorted_reweighted_pvalues[i], qvalues[sorted_indices[i+1]])
     
-    return qvalues, tst_estimators, reweighted_pvalues
+    return np.real(qvalues), tst_estimators, reweighted_pvalues
 
 
 def calculate_weighted_pvalues_with_timepoints(peptides, weights, alpha=0.05):
@@ -514,7 +514,7 @@ def calculate_weighted_pvalues_with_timepoints(peptides, weights, alpha=0.05):
         weighted_p_values[indices] = timepoint_reweighted_pvalues
         weighted_q_values[indices] = timepoint_qvalues
     
-    return weighted_p_values, weighted_q_values
+    return weighted_p_values, np.real(weighted_q_values)
 
 
 def compute_qvalues(pvalues, meff = None):
