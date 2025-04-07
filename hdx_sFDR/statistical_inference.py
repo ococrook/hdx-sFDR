@@ -167,7 +167,7 @@ def calculate_weights(peptides, coordinates, plddt_scores, lambda_seq=10, lambda
     return weights, seq_weights, struct_weights, conf_weights
 
 
-def kmeans_optimal(data, k_range=range(2, 11), random_state=42:
+def kmeans_optimal(data, k_range=range(2, 11), random_state=42):
     """
     Performs k-means clustering with multiple k values and returns the optimal clustering.
     
