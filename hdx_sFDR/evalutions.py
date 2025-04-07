@@ -98,9 +98,14 @@ def evaluate_multiple_regions(hdx_dataset, regions, coords, plddt, alphas=np.lin
                 alpha=alpha
             )
             
-            weighted_pvalues, qvalues = statistical_inference.calculate_weighted_pvalues(
-                peptides, weights, transform_sum=True
-            )
+            cluster_labels, best_k = statistical_inference.kmeans_optimal(weights)
+            # Compute TST estimators for this timepoint
+            tst_estimators, _ = statistical_inference.compute_tst(peptides[:,2], cluster_labels, 0.05)
+        
+            # Compute reweighted p-values
+            weighted_pvalues = statistical_inference.compute_weighted_pvalues(peptides[:,2], cluster_labels, tst_estimators)
+
+            qvalues = statistical_inference.compute_qvalues_tst(peptides[:2], cluster_labels, alpha=0.05)
             
             region_results.append({
                 'alpha': alpha,
