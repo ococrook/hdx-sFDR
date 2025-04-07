@@ -274,6 +274,9 @@ def compute_tst(pvalues, clusters, alpha=0.05):
         
         # Get total number of hypotheses in this cluster
         n_g = len(cluster_pvalues)
+
+        # Ensure reweighted_pvalues is 1D
+        reweighted_pvalues = np.asarray(reweighted_pvalues).flatten()
         
         # Step 1: Apply BH procedure at level alpha_prime
         reject_bh, _, _, _ = multipletests(cluster_pvalues, alpha=alpha_prime, method='fdr_bh')
@@ -393,6 +396,9 @@ def compute_qvalues_tst(pvalues, clusters, alpha=0.05):
     
     # First get the TST estimators and reweighted p-values
     _, reweighted_pvalues, tst_estimators = adaptive_tst_gbh(pvalues, clusters, alpha)
+
+    # Ensure reweighted_pvalues is 1D
+    reweighted_pvalues = np.asarray(reweighted_pvalues).flatten()
     
     # Sort the reweighted p-values and keep track of original indices
     n = len(reweighted_pvalues)
