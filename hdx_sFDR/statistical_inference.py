@@ -4,7 +4,8 @@ import pandas as pd
 from scipy.spatial.distance import pdist, squareform
 from scipy.stats import norm
 from statsmodels.stats.multitest import multipletests
-
+from sklearn.metrics import silhouette_score
+from sklearn.cluster import KMeans
 
 def load_structure(cif_path):
     """Load CIF file and extract coordinates and B-factors (pLDDT scores for AlphaFold)"""
