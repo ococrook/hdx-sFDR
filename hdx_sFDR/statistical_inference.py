@@ -372,7 +372,7 @@ def compute_weighted_pvalues(pvalues, clusters, tst_estimators):
         # Cap the reweighted p-value at 1
         reweighted_pvalues[i] = min(reweighted_pvalues[i], 1.0)
     
-    return reweighted_pvalues,
+    return np.array(reweighted_pvalues)
 
 def compute_qvalues_tst(pvalues, clusters, alpha=0.05):
     """
