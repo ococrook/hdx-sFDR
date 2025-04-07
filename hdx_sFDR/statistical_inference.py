@@ -167,7 +167,7 @@ def calculate_weights(peptides, coordinates, plddt_scores, lambda_seq=10, lambda
     return weights, seq_weights, struct_weights, conf_weights
 
 
-def kmeans_optimal(data, k_range=range(2, 11), random_state=42, standardize=True):
+def kmeans_optimal(data, k_range=range(2, 11), random_state=42:
     """
     Performs k-means clustering with multiple k values and returns the optimal clustering.
     
@@ -179,8 +179,6 @@ def kmeans_optimal(data, k_range=range(2, 11), random_state=42, standardize=True
         Range of k values to try
     random_state : int, default=42
         Random seed for reproducibility
-    standardize : bool, default=True
-        Whether to standardize the data before clustering
         
     Returns:
     --------
@@ -195,11 +193,6 @@ def kmeans_optimal(data, k_range=range(2, 11), random_state=42, standardize=True
         data_array = data.values
     else:
         data_array = data
-    
-    # Standardize data if requested
-    if standardize:
-        scaler = StandardScaler()
-        data_array = scaler.fit_transform(data_array)
     
     # Initialize storage for metrics
     inertia = []
@@ -474,7 +467,7 @@ def calculate_weighted_pvalues_with_timepoints(peptides, weights, alpha=0.05):
         tst_estimators_by_timepoint.append(tst_estimators)
         
         # Compute reweighted p-values for this timepoint
-        reweighted_pvalues = compute_reweighted_pvalues(current_pvalues, current_clusters, tst_estimators)
+        reweighted_pvalues = compute_weighted_pvalues(current_pvalues, current_clusters, tst_estimators)
         reweighted_pvalues_by_timepoint.append(reweighted_pvalues)
     
     # Flatten all reweighted p-values for global q-value computation
