@@ -11,7 +11,7 @@ except Exception as e:
 
 setup(
     name="hdx_sFDR",
-    version="0.1.17",
+    version="0.1.18",
     packages=find_packages(),
     install_requires=required_packages,
     author="Oliver Crook",

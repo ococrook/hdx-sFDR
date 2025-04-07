@@ -322,6 +322,9 @@ def adaptive_tst_gbh(pvalues, clusters, alpha=0.05):
     
     # Step 3: Reweight p-values using TST estimators
     reweighted_pvalues = compute_weighted_pvalues(pvalues, clusters, tst_estimators)
+
+    # Ensure reweighted_pvalues is 1D
+    reweighted_pvalues = np.asarray( reweighted_pvalues).flatten()
     
     # Apply BH procedure on reweighted p-values
     reject, _, _, _ = multipletests(reweighted_pvalues, alpha=alpha_prime, method='fdr_bh')
