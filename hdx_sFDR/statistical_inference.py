@@ -276,7 +276,7 @@ def compute_tst(pvalues, clusters, alpha=0.05):
         n_g = len(cluster_pvalues)
 
         # Ensure reweighted_pvalues is 1D
-        reweighted_pvalues = np.asarray(reweighted_pvalues).flatten()
+        cluster_pvalues = np.asarray(cluster_pvalues).flatten()
         
         # Step 1: Apply BH procedure at level alpha_prime
         reject_bh, _, _, _ = multipletests(cluster_pvalues, alpha=alpha_prime, method='fdr_bh')
