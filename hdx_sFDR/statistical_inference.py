@@ -585,7 +585,6 @@ def prepare_peptide_map(df, effect_positions=None):
     unique_peptides = unique_peptides.sort_values('Start').reset_index(drop=True)
     
     # Add random uniform p-values
-    np.random.seed(42)  # for reproducibility
     unique_peptides['pvalue'] = np.random.uniform(0, 1, size=len(unique_peptides))
     
     # Insert effects if specified
