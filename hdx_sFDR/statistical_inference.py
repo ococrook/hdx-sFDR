@@ -481,7 +481,7 @@ def calculate_weighted_pvalues_with_timepoints(peptides, weights, alpha=0.05):
         # Extract relevant peptides and their p-values for this timepoint
         current_peptides = peptides[indices]
         current_pvalues = current_peptides[:, 2]
-        current_clusters = cluster_labels[indices]
+        current_clusters = cluster_labels
         
         # Store p-values for this timepoint
         pvalues_by_timepoint.append(current_pvalues)
