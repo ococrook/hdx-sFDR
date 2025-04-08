@@ -365,7 +365,7 @@ def compute_weighted_pvalues(pvalues, clusters, tst_estimators):
         gamma_tst = tst_estimators[cluster]
         
         # Set thresholds for edge cases
-        epsilon_low = 0.1   # Threshold for gamma_tst near 0
+        epsilon_low = 0.5   # Threshold for gamma_tst near 0
         epsilon_high = 1e-4  # Threshold for gamma_tst near 1
         
         if gamma_tst < epsilon_low:
