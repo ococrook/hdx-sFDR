@@ -105,7 +105,7 @@ def evaluate_multiple_regions(hdx_dataset, regions, coords, plddt, alphas=np.lin
             # Compute reweighted p-values
             weighted_pvalues = statistical_inference.compute_weighted_pvalues(peptides[:,2], cluster_labels, tst_estimators)
 
-            qvalues = statistical_inference.compute_qvalues_tst(peptides[:,2], cluster_labels, alpha=0.05)
+            qvalues, tst_estimators, reweighted_pvalues = statistical_inference.compute_qvalues_tst(peptides[:,2], cluster_labels, alpha=0.05)
             
             region_results.append({
                 'alpha': alpha,
