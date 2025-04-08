@@ -364,10 +364,24 @@ def compute_weighted_pvalues(pvalues, clusters, tst_estimators):
         # Get the TST estimator for this cluster
         gamma_tst = tst_estimators[cluster]
         
-        # Reweight the p-value
-        # We use max(gamma_tst, epsilon) to avoid division by zero
-        epsilon = 1e-10
-        reweighted_pvalues[i] = p / max(gamma_tst, epsilon)
+        # Set thresholds for edge cases
+        epsilon_low = 0.05   # Threshold for gamma_tst near 0
+        epsilon_high = 1e-4  # Threshold for gamma_tst near 1
+        
+        if gamma_tst < epsilon_low:
+            # If gamma_tst is very close to 0, many true alternatives
+            # Use a small but non-zero weight to avoid making p-values too small
+            weight = epsilon_low / (1 - epsilon_low)
+        elif gamma_tst > 1 - epsilon_high:
+            # If gamma_tst is very close to 1, mostly true nulls
+            # Use a large weight but avoid division by a number very close to 0
+            weight = (1 - epsilon_high) / epsilon_high
+        else:
+            # Normal case
+            weight = gamma_tst / (1 - gamma_tst)
+        
+        # Apply the weight to the p-value
+        reweighted_pvalues[i] = p * weight
         
         # Cap the reweighted p-value at 1
         reweighted_pvalues[i] = min(reweighted_pvalues[i], 1.0)
